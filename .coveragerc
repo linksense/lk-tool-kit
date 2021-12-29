@@ -1,0 +1,28 @@
+[html]
+directory = lk_tool_kit_test_coverage_report
+title = lk_tool_kit_frog_coverage_report
+
+[run]
+source = lk_tool_kit
+concurrency = multiprocessing
+
+[report]
+omit =
+    *\_version.py
+    */_version.py
+    *pb2.py
+    *pb2_grpc.py
+
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self.debug:
+    if conf.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+
+fail_under = 80
+# coverage run --source grpc_frog -m pytest & coverage combine  & coverage report
