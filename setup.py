@@ -52,7 +52,7 @@ setup(
     packages=find_packages(include=["lk_tool_kit", "lk_tool_kit.*"]),
     entry_points={
         "console_scripts": [
-            "lk_tool_kit=lk_tool_kit.__main__:entry_point",
+            # "lk_tool_kit=lk_tool_kit.__main__:entry_point",
         ],
     },
     include_package_data=True,

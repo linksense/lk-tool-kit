@@ -2,3 +2,8 @@ ipython
 fire
 PyYAML
 traceback_with_variables
+sqlalchemy
+pydantic
+pandas
+pymysql
+numpy

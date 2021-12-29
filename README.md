@@ -10,11 +10,12 @@ lk tool kit package
 
 ---
 
-- csvModel抽离
-- 日志装饰起抽离
-- 日志对象抽离
-- uuid模块抽离
-- redis_cache抽离
+- [x] CSVData
+- [ ] 日志装饰器抽离
+- [ ] 日志对象抽离
+- [x] uuid模块抽离
+- [x] func_redis_cache抽离
+- [x] sqlalchemy operator 操作解析抽离
 
 
 ---
