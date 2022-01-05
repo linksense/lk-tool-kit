@@ -12,7 +12,7 @@ import inspect
 import pickle  # noqa: S403
 import time
 from functools import wraps
-from typing import Any, Callable, Iterable, Optional, TypeVar
+from typing import Any, Callable, List, Optional, TypeVar, Union
 
 import redis
 
@@ -22,6 +22,83 @@ RT = TypeVar("RT")  # return type
 def _key_fn(*args, **kwargs) -> str:
     """Generating function parameter signatures"""
     return hashlib.md5(pickle.dumps((args, kwargs))).hexdigest()  # noqa: S303
+
+
+class NoneCache:
+    """无返回值时返回的对象 用于区别None"""
+
+
+class FunctionDecorator:
+    def __init__(
+        self,
+        func: Callable[..., RT],
+        redis_cache: "RedisCache",
+        key_fn: Callable[..., str] = _key_fn,
+        timeout: int = None,
+        metrics_enabled: bool = False,
+    ):
+        self.func = func
+        self.key_fn = key_fn
+        self.timeout = timeout
+        self.metrics_enabled = metrics_enabled
+        self.redis_cache = redis_cache
+        self.metrics = {"hits": 0, "misses": 0, "avg_hit_time": 0, "avg_miss_time": 0}
+        wraps(func)(self)
+
+    def make_key(self, *args, **kwargs) -> str:
+        return "%s:%s" % (self.func.__name__, self.key_fn(*args, **kwargs))
+
+    def bust(self, *args, **kwargs) -> int:
+        """删除对应缓存"""
+        key = self.make_key(*args, **kwargs)
+        return self.redis_cache.delete(key)
+
+    def bust_all(self) -> int:
+        """删除该函数所有缓存"""
+        key = "%s:*" % self.func.__name__
+        return self.redis_cache.delete_all(key)
+
+    def redis_keys(self) -> List[str]:
+        key = "%s:*" % self.func.__name__
+        return self.redis_cache.keys(key)
+
+    def _record_metrics(self, is_cache_hit: bool, start: float) -> None:
+        if self.metrics_enabled:
+            dur = time.time() - start
+            if is_cache_hit:
+                self.metrics["hits"] += 1
+                self.metrics["avg_hit_time"] += dur / self.metrics["hits"]
+            else:
+                self.metrics["misses"] += 1
+                self.metrics["avg_miss_time"] += dur / self.metrics["misses"]
+
+    def __call__(self, *args, **kwargs) -> RT:
+        start = time.time()
+        is_cache_hit = True
+        key = self.make_key(*args, **kwargs)
+        res = self.redis_cache.get(key)
+        if res is NoneCache:
+            res = self.func(*args, **kwargs)
+            self.redis_cache.set_response(key, res, self.timeout)
+            is_cache_hit = False
+
+        self._record_metrics(is_cache_hit, start)
+        return res
+
+
+class AsyncFunctionDecorator(FunctionDecorator):
+    async def __call__(self, *args, **kwargs) -> RT:
+        start = time.time()
+        is_cache_hit = True
+        key = self.make_key(*args, **kwargs)
+        res = self.redis_cache.get(key)
+        if res is NoneCache:
+            res = await self.func(*args, **kwargs)
+            self.redis_cache.set_response(key, res, self.timeout)
+            is_cache_hit = False
+
+        self._record_metrics(is_cache_hit, start)
+        return res
 
 
 class RedisCache(object):
@@ -39,6 +116,19 @@ class RedisCache(object):
             name: Namespace for this cache.
             default_timeout: Default cache timeout.
             debug: Disable cache for debugging purposes. Cache will no-op.
+
+        >>> r_cache = RedisCache.from_url("redis://localhost:6379")
+        >>> @r_cache.cached(timeout=3, metrics=True)
+        ... def get_obj_str(string: int = None) -> Optional[str]:
+        ...     if string is None:
+        ...         return "no obj"
+        ...     return str(string)
+        >>>
+        >>> assert get_obj_str(10) == get_obj_str(10) # 使用缓存 结果一样
+        >>> assert get_obj_str.metrics["misses"] == 1 # 第一次无缓存
+        >>> assert get_obj_str.metrics["hits"] == 1 # 第二次命中缓存
+        >>> assert get_obj_str.bust(10) == 1 # 删除特定参数的缓存
+        >>> assert get_obj_str.bust_all() == 0 # 删除所有缓存
         """
         self.database = database
         self.name = name
@@ -104,7 +194,7 @@ class RedisCache(object):
             return 0
         return self.database.delete(*keys)
 
-    def keys(self, key: str = "*") -> Iterable[str]:
+    def keys(self, key: str = "*") -> List[str]:
         """获取所有缓存
 
         默认RedisCache的所有缓存
@@ -112,7 +202,7 @@ class RedisCache(object):
         keys = [key.decode() for key in self.database.keys(self.make_key(key))]
         return keys
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Any = NoneCache) -> Any:
         key = self.make_key(key)
         value = self.database.get(key)
         if not value:
@@ -137,7 +227,10 @@ class RedisCache(object):
         key_fn: Callable[..., str] = _key_fn,
         timeout: int = None,
         metrics: bool = False,
-    ) -> Callable[[Callable[..., RT]], Callable[..., RT]]:
+    ) -> Callable[
+        [Callable[..., RT]],
+        Union[Callable[..., RT], AsyncFunctionDecorator, FunctionDecorator],
+    ]:
         """缓存函数
 
         Args:
@@ -148,79 +241,16 @@ class RedisCache(object):
         if timeout is None:
             timeout = self.default_timeout
 
-        def decorator(func: Callable[..., RT]) -> Callable[..., RT]:
-            def make_key(*args, **kwargs) -> str:
-                return "%s:%s" % (func.__name__, key_fn(*args, **kwargs))
+        def decorator(
+            func: Callable[..., RT]
+        ) -> Union[Callable[..., RT], AsyncFunctionDecorator, FunctionDecorator]:
 
-            def bust(*args, **kwargs) -> int:
-                """删除对应缓存"""
-                key = make_key(*args, **kwargs)
-                return self.delete(key)
-
-            def bust_all() -> int:
-                """删除该函数所有缓存"""
-                key = "%s:*" % func.__name__
-                return self.delete_all(key)
-
-            def redis_keys() -> Iterable[str]:
-                key = "%s:*" % func.__name__
-                return self.keys(key)
-
-            _metrics = {"hits": 0, "misses": 0, "avg_hit_time": 0, "avg_miss_time": 0}
             if inspect.iscoroutinefunction(func):
-
-                @wraps(func)
-                async def inner(*args, **kwargs) -> RT:
-                    start = time.time()
-                    is_cache_hit = True
-                    key = make_key(args, kwargs)
-                    res = self.get(key)
-                    if res is None:
-                        res = await func(*args, **kwargs)
-                        self.set_response(key, res, timeout)
-                        is_cache_hit = False
-
-                    if metrics:
-                        dur = time.time() - start
-                        if is_cache_hit:
-                            _metrics["hits"] += 1
-                            _metrics["avg_hit_time"] += dur / _metrics["hits"]
-                        else:
-                            _metrics["misses"] += 1
-                            _metrics["avg_miss_time"] += dur / _metrics["misses"]
-
-                    return res
+                inner = AsyncFunctionDecorator(func, self, key_fn, timeout, metrics)
 
             else:
+                inner = FunctionDecorator(func, self, key_fn, timeout, metrics)
 
-                @wraps(func)
-                def inner(*args, **kwargs) -> RT:
-                    start = time.time()
-                    is_cache_hit = True
-                    key = make_key(*args, **kwargs)
-                    res = self.get(key)
-                    if res is None:
-                        res = func(*args, **kwargs)
-                        self.set_response(key, res, timeout)
-                        is_cache_hit = False
-
-                    if metrics:
-                        dur = time.time() - start
-                        if is_cache_hit:
-                            _metrics["hits"] += 1
-                            _metrics["avg_hit_time"] += dur / _metrics["hits"]
-                        else:
-                            _metrics["misses"] += 1
-                            _metrics["avg_miss_time"] += dur / _metrics["misses"]
-
-                    return res
-
-            inner.bust = bust
-            inner.bust_all = bust_all
-            inner.make_key = make_key
-            inner.redis_keys = redis_keys
-            if metrics:
-                inner.metrics = _metrics
             return inner
 
         return decorator
