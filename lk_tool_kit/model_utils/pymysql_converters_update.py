@@ -4,15 +4,19 @@
 # @author  : zza
 # @Email   : 740713651@qq.com
 # @File    : pymysql_converters_update.py
+from typing import Any, Optional
+
 import numpy
 import pandas
 import pymysql
 
 
-def pymysql_converters_update():
+def pymysql_converters_update() -> None:
     """pymysql不支持numpy的部分类型"""
 
-    def escape_pd_timestamp(obj, mapping=None):
+    def escape_pd_timestamp(
+        obj: pandas.Timestamp, mapping: Optional[Any] = None
+    ) -> str:
         """将pandas.Timestamp 转换为datetime"""
         return pymysql.converters.escape_date(obj.to_pydatetime(), mapping)
 
