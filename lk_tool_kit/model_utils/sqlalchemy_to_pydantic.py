@@ -4,6 +4,10 @@
 # @author  : zza
 # @Email   : 740713651@qq.com
 # @File    : sqlalchemy_to_pydantic.py
+"""
+copy from https://github.com/tiangolo/pydantic-sqlalchemy
+source noe support sqlalchemy == 1.3.10
+"""
 from typing import Container, Optional, Type
 
 from pydantic import BaseConfig, BaseModel, create_model

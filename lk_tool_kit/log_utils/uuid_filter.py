@@ -10,6 +10,18 @@ import uuid
 
 class UUIDFilter(logging.Filter):
     def __init__(self, name: str = "", uuid_str: str = None):
+        """uuid 日志工具
+
+        在打印的日志中，增加uuid显示（如果LOG_FORMAT中存在 %(uuid)s ）
+
+        Args:
+            name:
+            uuid_str:
+
+        >>> base_handler = logging.StreamHandler()
+        >>> uuid_filter = UUIDFilter(uuid_str="Server")
+        >>> base_handler.addFilter(uuid_filter)
+        """
         super(UUIDFilter, self).__init__(name)
         self.uuid = uuid_str or str(uuid.uuid4().hex)
 

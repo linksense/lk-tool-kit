@@ -21,6 +21,12 @@ def time_consuming_log(
     Args:
         logger: logger类型
         log_level: logger级别
+    >>> log = logging.getLogger("tmp")
+    >>> @time_consuming_log(log, logging.DEBUG)
+    ... def print_func(*args, **kwargs):
+    ...     print(*args, **kwargs)
+    >>> print_func(2503)
+    2503
     """
 
     def before_call(

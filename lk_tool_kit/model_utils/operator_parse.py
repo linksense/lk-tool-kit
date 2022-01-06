@@ -5,8 +5,9 @@
 # @Email   : 740713651@qq.com
 # @File    : operator_parse.py
 import json
-from typing import Type
+from typing import Any, Dict, Type, Union
 
+from sqlalchemy.orm import Query
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.schema import Table
 
@@ -26,7 +27,10 @@ _operator_map = {
 
 
 def parse_operator(
-    class_obj: Table, key: str, value: str, exception_type: Type[Exception]
+    class_obj: Table,
+    key: str,
+    value: Union[str, int],
+    exception_type: Type[Exception] = Exception,
 ) -> BinaryExpression:
     """将查询请求转换mysql识别的 BinaryExpression
     eg。 x__gt:30 -> filter(x >= 30 )
@@ -43,3 +47,27 @@ def parse_operator(
     if _operator not in _operator_map.keys():
         raise exception_type("未知操作符{}".format(key))
     return _operator_map[_operator](attr, value)
+
+
+def parse_query_fields(
+    query: Query,
+    table: Table,
+    query_field: Dict[str, Union[str, int, Dict[str, Any]]],
+    exception_type: Type[Exception] = Exception,
+) -> Query:
+    """ 转化字段查询未sqlalchemy查询
+
+    Args:
+        query:
+        table:
+        query_field:
+        exception_type:
+
+    Returns:
+
+    """
+    for field, value in query_field.items():
+        query = query.filter(
+            parse_operator(table, field, value, exception_type=exception_type)
+        )
+    return query
