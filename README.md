@@ -10,13 +10,12 @@ lk tool kit package
 
 ---
 
-- [x] CSVData
-- [ ] 日志装饰器抽离
-- [ ] 日志对象抽离
-- [x] uuid模块抽离
-- [x] func_redis_cache抽离
-- [x] sqlalchemy operator 操作解析抽离
-
+- CSVData: csv df to json str
+- time_consuming_log: 日志装饰器抽离
+- UUIDFilter: log add uuid field
+- RedisCache: redis function cache
+- compiles_init: SQLAlchemy table_args 分区参数支持
+- parse_query_fields: SQLAlchemy 查询字段转化
 
 ---
 
