@@ -55,7 +55,7 @@ def parse_query_fields(
     query_field: Dict[str, Union[str, int, Dict[str, Any]]],
     exception_type: Type[Exception] = Exception,
 ) -> Query:
-    """ 转化字段查询未sqlalchemy查询
+    """转化字段查询未sqlalchemy查询
 
     Args:
         query:
