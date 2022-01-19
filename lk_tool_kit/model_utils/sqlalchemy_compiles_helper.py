@@ -34,7 +34,7 @@ def add_partition_scheme(element: CreateTable, compiler: MySQLDDLCompiler) -> st
     if partitions:
         _sql = []
         for par_code in partitions:
-            _sql.append("PARTITION p_{} VALUES IN({}) ".format(par_code, par_code))
+            _sql.append("PARTITION p_{} VALUES IN({}) ".format(par_code.replace("'", ""), par_code))
         ddl += "({})".format(", ".join(_sql))
         table.kwargs["mysql_partitions"] = partitions
 
