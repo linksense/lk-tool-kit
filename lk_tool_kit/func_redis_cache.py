@@ -171,7 +171,7 @@ class RedisCache(object):
 
     def unmake_key(self, key: str) -> str:
         """还原redis key至函数签名"""
-        return key[self.prefix_len:]  # noqa: E203
+        return key[self.prefix_len :]  # noqa: E203
 
     def delete(self, key: str) -> int:
         """删除缓存"""

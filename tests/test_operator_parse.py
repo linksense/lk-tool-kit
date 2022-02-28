@@ -9,7 +9,7 @@ import os
 import pytest
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import BOOLEAN, INTEGER, VARCHAR, Column
+from sqlalchemy import BOOLEAN, FLOAT, INTEGER, VARCHAR, Column
 
 from lk_tool_kit import parse_operator, parse_query_fields
 
@@ -30,6 +30,8 @@ class DataModel(db.Model):
     field_a: bool = Column(BOOLEAN)
     field_b: int = Column(INTEGER)
     field_c: str = Column(VARCHAR)
+    x: float = Column(FLOAT)
+    y: float = Column(FLOAT)
 
 
 def teardown_module():
@@ -51,17 +53,24 @@ def test_parse_query_fields():
         "field_a": True,
         "field_b__gt": 20,
         "field_c__in": '["a", "b"]',
+        "field_b__lt": 5,  # 1>b>5
+        "or": [
+            {"x__gt": 0, "y__gt": 0},  # x> 0 and y>0
+            {"x__lt": 0, "y__lt": 0},  # x< 0 and y<0
+        ],
     }
     query = db.session.query(DataModel)
     query = parse_query_fields(query, DataModel.__table__, query_field)
     sql_string = str(query.statement)
 
     _get_sql = """
-    SELECT data.obj_id, data.field_a, data.field_b, data.field_c
-    FROM data
-    WHERE (data.field_a = :field_a_1)
-      AND (data.field_b > :field_b_1)
-      AND data.field_c IN (:field_c_1, :field_c_2)
+    SELECT data.obj_id, data.field_a, data.field_b, data.field_c, data.x, data.y 
+    FROM data 
+    WHERE (data.field_a = :field_a_1) 
+        AND (data.field_b > :field_b_1) 
+        AND data.field_c IN (:field_c_1, :field_c_2) 
+        AND (data.field_b < :field_b_2) 
+        AND (((data.x > :x_1) AND (data.y > :y_1)) OR ((data.x < :x_2) AND (data.y < :y_2)))
       """
-    for _str in _get_sql.strip():
-        assert _str in sql_string
+    for _str in _get_sql.split("\n"):
+        assert _str.strip() in sql_string
