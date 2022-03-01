@@ -54,10 +54,7 @@ def test_parse_query_fields():
         "field_b__gt": 20,
         "field_c__in": '["a", "b"]',
         "field_b__lt": 5,  # 1>b>5
-        "or": [
-            {"x__gt": 0, "y__gt": 0},  # x> 0 and y>0
-            {"x__lt": 0, "y__lt": 0},  # x< 0 and y<0
-        ],
+        "or": '[{"x__gt": 0, "y__gt": 0}, {"x__lt": 0, "y__lt": 0}]',
     }
     query = db.session.query(DataModel)
     query = parse_query_fields(query, DataModel.__table__, query_field)

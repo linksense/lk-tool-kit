@@ -63,7 +63,8 @@ def _get_query(
             # or 多重条件查询 需要考虑递归情况
             # value =[{"x__gt": 20, "x": 10}]
             _sub_query_list = []
-            for _query_field in value:
+            _or_query_data = json.loads(value)
+            for _query_field in _or_query_data:
                 _or_query = _get_query(
                     table=table,
                     query_field=_query_field,
